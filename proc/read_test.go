@@ -92,8 +92,9 @@ func TestReadFixture(t *testing.T) {
 			Open:  5,
 			Limit: 0x400,
 		},
-		NumThreads: 7,
-		States:     States{Sleeping: 1},
+		NumThreads:       7,
+		States:           States{Sleeping: 1},
+		TCPSocketSummary: TCPSocketSummary{},
 	}
 	if diff := cmp.Diff(pii.Metrics, wantmetrics); diff != "" {
 		t.Errorf("metrics differs: (-got +want)\n%s", diff)

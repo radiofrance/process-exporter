@@ -87,6 +87,12 @@ var (
 		[]string{"groupname", "state"},
 		nil)
 
+	processTcpSocketCountDesc = prometheus.NewDesc(
+		"namedprocess_namegroup_tcp_socket_count",
+		"Number of TCP sockets open by a process",
+		[]string{"groupname", "state"},
+		nil)
+
 	scrapeErrorsDesc = prometheus.NewDesc(
 		"namedprocess_scrape_errors",
 		"general scrape errors: no proc metrics collected during a cycle",
@@ -226,6 +232,7 @@ func (p *NamedProcessCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- scrapeErrorsDesc
 	ch <- scrapeProcReadErrorsDesc
 	ch <- scrapePartialErrorsDesc
+	ch <- processTcpSocketCountDesc
 	ch <- threadWchanDesc
 	ch <- threadCountDesc
 	ch <- threadCpuSecsDesc
@@ -300,6 +307,11 @@ func (p *NamedProcessCollector) scrape(ch chan<- prometheus.Metric) {
 				prometheus.GaugeValue, float64(gcounts.States.Zombie), gname, "Zombie")
 			ch <- prometheus.MustNewConstMetric(statesDesc,
 				prometheus.GaugeValue, float64(gcounts.States.Other), gname, "Other")
+
+			for state, count := range gcounts.TCPSocketSummary {
+				ch <- prometheus.MustNewConstMetric(processTcpSocketCountDesc,
+					prometheus.GaugeValue, float64(count), gname, string(state))
+			}
 
 			for wchan, count := range gcounts.Wchans {
 				ch <- prometheus.MustNewConstMetric(threadWchanDesc,

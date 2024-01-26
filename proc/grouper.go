@@ -36,6 +36,7 @@ type (
 		Wchans map[string]int
 		Procs  int
 		Memory
+		TCPSocketSummary
 		OldestStartTime time.Time
 		OpenFDs         uint64
 		WorstFDratio    float64
@@ -80,6 +81,13 @@ func groupadd(grp Group, ts Update) Group {
 	grp.States.Add(ts.States)
 	if grp.OldestStartTime == zeroTime || ts.Start.Before(grp.OldestStartTime) {
 		grp.OldestStartTime = ts.Start
+	}
+
+	if grp.TCPSocketSummary == nil {
+		grp.TCPSocketSummary = make(TCPSocketSummary, len(TCPSocketStates))
+	}
+	for state, count := range ts.TCPSocketSummary {
+		grp.TCPSocketSummary[state] += count
 	}
 
 	if grp.Wchans == nil {
