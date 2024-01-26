@@ -10,9 +10,27 @@ import (
 	"github.com/prometheus/procfs"
 )
 
-// ErrProcNotExist indicates a process couldn't be read because it doesn't exist,
-// typically because it disappeared while we were reading it.
-var ErrProcNotExist = fmt.Errorf("process does not exist")
+var (
+	// ErrProcNotExist indicates a process couldn't be read because it doesn't exist,
+	// typically because it disappeared while we were reading it.
+	ErrProcNotExist = fmt.Errorf("process does not exist")
+
+	// List of TCP socket states from https://github.com/torvalds/linux/blob/master/include/net/tcp_states.h
+	TCPSocketStates = [12]tcpSocketState{
+		"INVALID",
+		"ESTABLISHED",
+		"SYN_SENT",
+		"SYN_RECV",
+		"FIN_WAIT1",
+		"FIN_WAIT2",
+		"TIME_WAIT",
+		"CLOSE",
+		"CLOSE_WAIT",
+		"LAST_ACK",
+		"LISTEN",
+		"CLOSING",
+	}
+)
 
 type (
 	// ID uniquely identifies a process.
@@ -74,6 +92,13 @@ type (
 		Other    int
 	}
 
+	// tcpSocketState represents the state of a TCP socket.
+	tcpSocketState string
+
+	// TCPSocketSummary contains a summary of TCP socket states
+	// used by a process.
+	TCPSocketSummary map[tcpSocketState]int
+
 	// Metrics contains data read from /proc/pid/*
 	Metrics struct {
 		Counts
@@ -81,6 +106,7 @@ type (
 		Filedesc
 		NumThreads uint64
 		States
+		TCPSocketSummary
 		Wchan string
 	}
 
@@ -495,6 +521,11 @@ func (p proc) GetMetrics() (Metrics, int, error) {
 		softerrors |= 1
 	}
 
+	tcpSocketSummary, err := p.getTCPSocketSummary()
+	if err != nil {
+		softerrors |= 1
+	}
+
 	limits, err := p.Proc.NewLimits()
 	if err != nil {
 		return Metrics{}, 0, err
@@ -528,9 +559,10 @@ func (p proc) GetMetrics() (Metrics, int, error) {
 			Open:  int64(numfds),
 			Limit: uint64(limits.OpenFiles),
 		},
-		NumThreads: uint64(stat.NumThreads),
-		States:     states,
-		Wchan:      wchan,
+		NumThreads:       uint64(stat.NumThreads),
+		States:           states,
+		TCPSocketSummary: tcpSocketSummary,
+		Wchan:            wchan,
 	}, softerrors, nil
 }
 
@@ -581,6 +613,29 @@ func (p proc) GetThreads() ([]Thread, error) {
 	}
 
 	return threads, nil
+}
+
+func (p proc) getTCPSocketSummary() (TCPSocketSummary, error) {
+	pid, err := p.GetProcID()
+	if err != nil {
+		return TCPSocketSummary{}, err
+	}
+
+	sockets, err := NewNetIPSocket(fmt.Sprintf("/proc/%d/net/tcp", pid.Pid))
+	if err != nil {
+		return TCPSocketSummary{}, err
+	}
+
+	summary := TCPSocketSummary{}
+	for _, socket := range sockets {
+		if socket.St >= uint64(len(TCPSocketStates)) {
+			continue
+		}
+
+		summary[TCPSocketStates[socket.St]]++
+	}
+
+	return summary, nil
 }
 
 // See https://github.com/prometheus/procfs/blob/master/proc_stat.go for details on userHZ.

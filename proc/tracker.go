@@ -80,6 +80,8 @@ type (
 		Memory
 		// Filedesc is the current fd usage/limit.
 		Filedesc
+		// TCPSocketSummary is the summary of TCP socket metrics for this process.
+		TCPSocketSummary
 		// Start is the time the process started.
 		Start time.Time
 		// NumThreads is the number of threads.
@@ -115,14 +117,15 @@ func lessCounts(x, y Counts) bool { return seq.Compare(x, y) < 0 }
 
 func (tp *trackedProc) getUpdate() Update {
 	u := Update{
-		GroupName:  tp.groupName,
-		Latest:     tp.lastaccum,
-		Memory:     tp.metrics.Memory,
-		Filedesc:   tp.metrics.Filedesc,
-		Start:      tp.static.StartTime,
-		NumThreads: tp.metrics.NumThreads,
-		States:     tp.metrics.States,
-		Wchans:     make(map[string]int),
+		GroupName:        tp.groupName,
+		Latest:           tp.lastaccum,
+		Memory:           tp.metrics.Memory,
+		Filedesc:         tp.metrics.Filedesc,
+		Start:            tp.static.StartTime,
+		NumThreads:       tp.metrics.NumThreads,
+		States:           tp.metrics.States,
+		TCPSocketSummary: tp.metrics.TCPSocketSummary,
+		Wchans:           make(map[string]int),
 	}
 	if tp.metrics.Wchan != "" {
 		u.Wchans[tp.metrics.Wchan] = 1
@@ -259,6 +262,7 @@ func (t *Tracker) handleProc(proc Proc, updateTime time.Time) (*IDInfo, CollectE
 			metrics.Counts.CtxSwitchVoluntary += thread.Counts.CtxSwitchVoluntary
 			metrics.States.Add(thread.States)
 		}
+		softerrors |= 1
 	}
 
 	var newProc *IDInfo
